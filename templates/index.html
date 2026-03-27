@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>月次試算表チェックツール | 秋田税理士事務所</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #1d4e89;
+      --brand-light: #2563eb;
+    }
+    body {
+      background: #f0f4f8;
+      font-family: 'Meiryo UI', 'Meiryo', 'Yu Gothic UI', 'Yu Gothic', sans-serif;
+      min-height: 100vh;
+    }
+    .site-header {
+      background: linear-gradient(135deg, var(--brand) 0%, var(--brand-light) 100%);
+      color: #fff;
+      padding: 1.5rem 0 1.25rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.18);
+    }
+    .site-header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: .04em; }
+    .site-header p  { font-size: .85rem; opacity: .85; margin: 0; }
+
+    /* upload cards */
+    .upload-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+    .drop-zone {
+      border: 2px dashed #b0bec5;
+      border-radius: 8px;
+      padding: 1.75rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: #fafbfc;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--brand-light); background: #eef4ff; }
+    .drop-zone.file-ok { border-color: #2e7d32; background: #f1f8f1; }
+    .drop-zone .icon { font-size: 2rem; color: #90a4ae; }
+    .drop-zone.file-ok .icon { color: #2e7d32; }
+    .drop-zone p { margin: .5rem 0 0; font-size: .88rem; color: #546e7a; }
+    .drop-zone.file-ok p { color: #2e7d32; font-weight: 600; }
+
+    /* summary badges */
+    .summary-block {
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      color: #fff;
+      font-weight: 700;
+    }
+    .summary-block .num { font-size: 2rem; line-height: 1; }
+    .summary-block .lbl { font-size: .82rem; opacity: .9; }
+    .bg-error   { background: #c62828; }
+    .bg-warning { background: #e65100; color: #fff; }
+    .bg-info    { background: #01579b; }
+    .bg-ok      { background: #2e7d32; }
+
+    /* check result cards */
+    .check-item {
+      border-left: 4px solid;
+      border-radius: 0 8px 8px 0;
+      background: #fff;
+      margin-bottom: .6rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .check-item.level-error   { border-color: #c62828; }
+    .check-item.level-warning { border-color: #e65100; }
+    .check-item.level-info    { border-color: #0277bd; }
+
+    .level-badge {
+      display: inline-block;
+      border-radius: 4px;
+      font-size: .72rem;
+      font-weight: 700;
+      padding: .15rem .55rem;
+      letter-spacing: .03em;
+    }
+    .badge-error   { background: #c62828; color: #fff; }
+    .badge-warning { background: #e65100; color: #fff; }
+    .badge-info    { background: #0277bd; color: #fff; }
+
+    .action-box {
+      background: #f8f9fa;
+      border-radius: 6px;
+      font-size: .84rem;
+      color: #37474f;
+      white-space: pre-line;
+    }
+
+    /* section headers */
+    .section-title {
+      font-size: .8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #78909c;
+      margin: 1.25rem 0 .5rem;
+    }
+
+    /* parsed info */
+    .parsed-info {
+      background: #e8f5e9;
+      border-radius: 8px;
+      font-size: .82rem;
+      color: #1b5e20;
+    }
+
+    #results-section { display: none; }
+    #spinner { display: none; }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <h1><i class="bi bi-clipboard2-pulse me-2"></i>月次試算表チェックツール</h1>
+    <p>秋田税理士事務所 &nbsp;|&nbsp; ICS出力Excelから不整合・要確認箇所を自動検出します</p>
+  </div>
+</header>
+
+<div class="container my-4" style="max-width:860px;">
+
+  <!-- ファイルアップロード -->
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="upload-card p-3">
+        <div class="d-flex align-items-center mb-2">
+          <i class="bi bi-table text-primary me-2 fs-5"></i>
+          <span class="fw-bold">月次試算表</span>
+          <span class="ms-2 badge bg-secondary fw-normal" style="font-size:.72rem;">任意</span>
+        </div>
+        <p class="text-muted mb-2" style="font-size:.82rem;">
+          ICS → 月次試算表 で出力したExcelをアップロード<br>
+          <small>仮払金・仮受金残高、マイナス残高などをチェック</small>
+        </p>
+        <div class="drop-zone" id="trial-zone">
+          <input type="file" id="trial-input" accept=".xlsx,.xls" class="d-none">
+          <div class="icon"><i class="bi bi-file-earmark-excel"></i></div>
+          <p>クリックまたはドラッグ＆ドロップ<br><small>.xlsx / .xls</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="upload-card p-3">
+        <div class="d-flex align-items-center mb-2">
+          <i class="bi bi-graph-up-arrow text-success me-2 fs-5"></i>
+          <span class="fw-bold">比較損益推移表</span>
+          <span class="ms-2 badge bg-secondary fw-normal" style="font-size:.72rem;">任意</span>
+        </div>
+        <p class="text-muted mb-2" style="font-size:.82rem;">
+          ICS → 比較損益推移表 で出力したExcelをアップロード<br>
+          <small>異常値・消耗品費・修繕費・雑費などをチェック</small>
+        </p>
+        <div class="drop-zone" id="trend-zone">
+          <input type="file" id="trend-input" accept=".xlsx,.xls" class="d-none">
+          <div class="icon"><i class="bi bi-file-earmark-excel"></i></div>
+          <p>クリックまたはドラッグ＆ドロップ<br><small>.xlsx / .xls</small></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- チェックボタン -->
+  <div class="text-center mt-3">
+    <button id="check-btn" class="btn btn-primary btn-lg px-5 shadow-sm" disabled>
+      <i class="bi bi-search me-2"></i>チェック開始
+    </button>
+    <p class="text-muted mt-2" style="font-size:.8rem;">
+      ※預金残高のチェックは通帳コピーが必要なため本ツールの対象外です
+    </p>
+  </div>
+
+  <!-- ローディング -->
+  <div id="spinner" class="text-center my-4">
+    <div class="spinner-border text-primary" role="status"></div>
+    <p class="mt-2 text-muted">Excelを読み込んでチェック中...</p>
+  </div>
+
+  <!-- 結果エリア -->
+  <div id="results-section" class="mt-4">
+
+    <!-- エラーメッセージ（パース失敗など） -->
+    <div id="error-area"></div>
+
+    <!-- パース確認（読み込めた科目の概要） -->
+    <div id="parsed-area"></div>
+
+    <!-- サマリー -->
+    <div id="summary-row" class="row g-2 mb-3"></div>
+
+    <!-- 全OKメッセージ -->
+    <div id="all-ok" class="alert alert-success d-none">
+      <i class="bi bi-check-circle-fill me-2"></i>
+      <strong>チェック項目に該当するものはありませんでした。</strong>
+      読み込んだデータの範囲では、問題は検出されませんでした。
+    </div>
+
+    <!-- チェック結果一覧 -->
+    <div id="checks-area"></div>
+
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────
+// ドラッグ＆ドロップ / ファイル選択
+// ─────────────────────────────
+function setupDrop(zoneId, inputId) {
+  const zone  = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+
+  zone.addEventListener('click', () => input.click());
+
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) setFile(input, zone, f);
+  });
+  input.addEventListener('change', () => {
+    if (input.files[0]) setFile(input, zone, input.files[0]);
+  });
+}
+
+function setFile(input, zone, file) {
+  // inputにファイルをセット（DataTransferを使う）
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+
+  zone.classList.add('file-ok');
+  zone.querySelector('.icon').innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+  zone.querySelector('p').textContent = file.name;
+
+  updateBtn();
+}
+
+function updateBtn() {
+  const t = document.getElementById('trial-input').files.length > 0;
+  const r = document.getElementById('trend-input').files.length  > 0;
+  document.getElementById('check-btn').disabled = !(t || r);
+}
+
+setupDrop('trial-zone', 'trial-input');
+setupDrop('trend-zone',  'trend-input');
+
+// ─────────────────────────────
+// チェック実行
+// ─────────────────────────────
+document.getElementById('check-btn').addEventListener('click', async () => {
+  const trialFile = document.getElementById('trial-input').files[0];
+  const trendFile = document.getElementById('trend-input').files[0];
+
+  const form = new FormData();
+  if (trialFile) form.append('trial', trialFile);
+  if (trendFile) form.append('trend', trendFile);
+
+  // UI リセット
+  document.getElementById('results-section').style.display = 'none';
+  document.getElementById('spinner').style.display = 'block';
+  document.getElementById('check-btn').disabled = true;
+
+  try {
+    const res  = await fetch('/api/check', { method: 'POST', body: form });
+    const data = await res.json();
+    renderResults(data);
+  } catch (e) {
+    renderResults({ checks: [], summary: {}, errors: ['通信エラーが発生しました: ' + e], parsed: {} });
+  } finally {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('check-btn').disabled = false;
+    document.getElementById('results-section').style.display = 'block';
+    document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+
+// ─────────────────────────────
+// 結果レンダリング
+// ─────────────────────────────
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderResults(data) {
+  // エラー
+  const errArea = document.getElementById('error-area');
+  errArea.innerHTML = '';
+  if (data.errors && data.errors.length) {
+    data.errors.forEach(msg => {
+      errArea.insertAdjacentHTML('beforeend', `
+        <div class="alert alert-danger d-flex align-items-start gap-2 mb-2">
+          <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+          <div style="white-space:pre-line;">${esc(msg)}</div>
+        </div>`);
+    });
+  }
+
+  // パース結果概要
+  const parsedArea = document.getElementById('parsed-area');
+  parsedArea.innerHTML = '';
+  if (data.parsed) {
+    let html = '';
+    if (data.parsed.trial) {
+      const p = data.parsed.trial;
+      html += `<div class="parsed-info p-3 mb-2">
+        <i class="bi bi-check2 me-1"></i>
+        <strong>試算表</strong>：${p.count}科目を読み込みました
+        <span class="text-muted ms-2" style="font-size:.78rem;">（${p.accounts.slice(0,8).join('、')}${p.accounts.length>8?' …':''}）</span>
+      </div>`;
+    }
+    if (data.parsed.trend) {
+      const p = data.parsed.trend;
+      html += `<div class="parsed-info p-3 mb-2">
+        <i class="bi bi-check2 me-1"></i>
+        <strong>推移表</strong>：${p.months.join('月・')}月 ／ ${p.count}科目を読み込みました
+        <span class="text-muted ms-2" style="font-size:.78rem;">（${p.accounts.slice(0,8).join('、')}${p.accounts.length>8?' …':''}）</span>
+      </div>`;
+    }
+    parsedArea.innerHTML = html;
+  }
+
+  // サマリー
+  const summaryRow = document.getElementById('summary-row');
+  summaryRow.innerHTML = '';
+  const checks  = data.checks || [];
+  const summary = data.summary || {};
+
+  if (checks.length > 0) {
+    const items = [
+      { key: 'error',   label: '要対応',  bg: 'bg-error',   icon: 'bi-x-octagon-fill' },
+      { key: 'warning', label: '要確認',  bg: 'bg-warning', icon: 'bi-exclamation-triangle-fill' },
+      { key: 'info',    label: '参考確認', bg: 'bg-info',    icon: 'bi-info-circle-fill' },
+    ];
+    items.forEach(({ key, label, bg, icon }) => {
+      const n = summary[key] || 0;
+      summaryRow.insertAdjacentHTML('beforeend', `
+        <div class="col-4">
+          <div class="summary-block ${bg}">
+            <i class="bi ${icon} fs-3 opacity-75"></i>
+            <div>
+              <div class="num">${n}</div>
+              <div class="lbl">${label}</div>
+            </div>
+          </div>
+        </div>`);
+    });
+  }
+
+  // 全OKメッセージ
+  const allOk = document.getElementById('all-ok');
+  allOk.classList.toggle('d-none', checks.length !== 0);
+
+  // チェック結果一覧
+  const checksArea = document.getElementById('checks-area');
+  checksArea.innerHTML = '';
+  if (checks.length === 0) return;
+
+  const groups = { error: [], warning: [], info: [] };
+  checks.forEach(c => { if (groups[c.level]) groups[c.level].push(c); });
+
+  const groupMeta = [
+    { key: 'error',   title: '要対応',  badgeClass: 'badge-error',   icon: 'bi-x-octagon-fill text-danger' },
+    { key: 'warning', title: '要確認',  badgeClass: 'badge-warning', icon: 'bi-exclamation-triangle-fill text-warning' },
+    { key: 'info',    title: '参考確認', badgeClass: 'badge-info',    icon: 'bi-info-circle-fill text-info' },
+  ];
+
+  groupMeta.forEach(({ key, title, badgeClass, icon }) => {
+    const items = groups[key];
+    if (!items.length) return;
+
+    checksArea.insertAdjacentHTML('beforeend',
+      `<div class="section-title"><i class="bi ${icon.split(' ')[0]} me-1"></i>${title}（${items.length}件）</div>`
+    );
+
+    items.forEach(c => {
+      checksArea.insertAdjacentHTML('beforeend', `
+        <div class="check-item level-${c.level} p-3">
+          <div class="d-flex align-items-start gap-2 flex-wrap">
+            <span class="level-badge ${badgeClass}">${title}</span>
+            <span class="fw-bold" style="font-size:.9rem;">${esc(c.category)}</span>
+          </div>
+          <div class="mt-1" style="font-size:.92rem;">${esc(c.message)}</div>
+          <div class="action-box mt-2 px-3 py-2">
+            <i class="bi bi-arrow-right-circle me-1 text-secondary"></i>${esc(c.action)}
+          </div>
+        </div>`);
+    });
+  });
+}
+</script>
+
+</body>
+</html>
